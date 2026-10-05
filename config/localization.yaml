@@ -1,0 +1,65 @@
+# Dual-EKF + navsat_transform (robot_localization)
+#   ekf_local : odom -> base_footprint   (wheel odom + IMU, continuous, no jumps)
+#   ekf_global: map  -> odom             (+ GPS, globally consistent)
+#   navsat    : GPS lat/lon -> /odometry/gps in the map frame
+# Datum = Gazebo world origin (BMSTU), so the map frame coincides with the Gazebo world frame.
+
+ekf_local:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.2
+    two_d_mode: true
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom
+    odom0: /odom
+    #             x      y      z      roll   pitch  yaw
+    #             vx     vy     vz     vroll  vpitch vyaw
+    #             ax     ay     az
+    odom0_config: [false, false, false, false, false, false,
+                   true,  true,  false, false, false, true,
+                   false, false, false]
+    imu0: /imu
+    imu0_config: [false, false, false, false, false, true,
+                  false, false, false, false, false, true,
+                  false, false, false]
+    imu0_remove_gravitational_acceleration: true
+
+ekf_global:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.2
+    two_d_mode: true
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: map
+    odom0: /odom
+    odom0_config: [false, false, false, false, false, false,
+                   true,  true,  false, false, false, true,
+                   false, false, false]
+    odom1: /odometry/gps
+    odom1_config: [true,  true,  false, false, false, false,
+                   false, false, false, false, false, false,
+                   false, false, false]
+    imu0: /imu
+    imu0_config: [false, false, false, false, false, true,
+                  false, false, false, false, false, true,
+                  false, false, false]
+    imu0_remove_gravitational_acceleration: true
+
+navsat_transform:
+  ros__parameters:
+    frequency: 10.0
+    delay: 1.0
+    magnetic_declination_radians: 0.0
+    yaw_offset: 0.0
+    zero_altitude: true
+    publish_filtered_gps: true
+    use_odometry_yaw: false
+    use_local_cartesian: true          # exact local ENU like Gazebo (UTM grid would be rotated ~1 deg here)
+    wait_for_datum: true
+    datum: [55.7659, 37.6850, 0.0]     # lat, lon, yaw(ENU) of the Gazebo world origin

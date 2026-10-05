@@ -1,0 +1,7 @@
+# Route A -> B. Each waypoint is either GPS (lat/lon, WGS84) or world/map (x/y, metres).
+# GPS points are converted to the map frame by navsat_transform's /fromLL service.
+waypoints:
+  - {name: WP1, lat: 55.76589731, lon: 37.68495221}   # world (-3.0, -0.3): past the wall and pillar
+  - {name: WP2, lat: 55.76590000, lon: 37.68504142}   # world ( 2.6,  0.0): in front of the low curb
+  - {name: B,   lat: 55.76590000, lon: 37.68513542}   # world ( 8.5,  0.0): finish zone B
+finish_zone_radius: 0.7   # metres around the last waypoint
