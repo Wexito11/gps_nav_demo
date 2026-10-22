@@ -1,55 +1,55 @@
-# gps_nav_demo - автономный проезд A → B по GPS-точкам с объездом препятствий
+# gps_nav_demo - autonomous A → B drive along GPS waypoints with obstacle avoidance
 
-Тестовое задание «Программист робота (ROS/Gazebo)». Дифференциальный робот в Gazebo стартует из зоны A,
-проходит маршрут, заданный **GPS-координатами (WGS84)**, объезжает препятствия по данным **2D-лидара** и
-**камеры глубины** (эмуляция Orbbec Astra) и останавливается в зоне B.
+🇷🇺 [Русская версия](README.ru.md) (also includes answers to the electronics bonus questions)
 
+Test assignment for a «Robot Programmer (ROS/Gazebo)» position. A differential-drive robot in Gazebo starts in zone A,
+follows a route given as **GPS coordinates (WGS84)**, avoids obstacles using a **2D lidar** and a
+**depth camera** (Orbbec Astra emulation), and stops in zone B.
 
-🎥 **Видео** (без ускорения; RTF ≈ 0.35, поэтому робот движется медленнее реального времени):
+🎥 **Video** (real speed; RTF ≈ 0.35, so the robot moves slower than real time):
 
 https://github.com/user-attachments/assets/876cc7d8-c2a4-443c-a8db-e25461d0f82a
 
+**Key detail of the scene:** a low 8 cm curb sits *below* the lidar plane (0.20 m). The lidar cannot see it,
+the depth camera can - and Nav2 drives around it. This shows why the robot needs both sensors and how they
+are fused in a 3D (voxel) costmap.
 
-**Главная деталь сцены:** низкий бордюр 8 см стоит *ниже* плоскости лидара (0.20 м). Лидар его не видит,
-камера глубины видит - и Nav2 его объезжает. Это показывает, зачем роботу оба сенсора и как они
-объединяются в 3D (voxel) карте стоимости.
-
-## Стек
+## Stack
 
 | | |
 |---|---|
-| ОС | Ubuntu 24.04 |
+| OS | Ubuntu 24.04 |
 | ROS | **ROS 2 Jazzy** |
-| Симулятор | **Gazebo Harmonic** (линейка Ignition) |
-| Навигация | Nav2 (A* + MPPI), robot_localization (dual EKF + navsat_transform) |
-| Код | Python, xacro (URDF/SDF), YAML |
+| Simulator | **Gazebo Harmonic** (Ignition line) |
+| Navigation | Nav2 (A* + MPPI), robot_localization (dual EKF + navsat_transform) |
+| Code | Python, xacro (URDF/SDF), YAML |
 
-**Почему Jazzy + Harmonic, а не Humble:** Jazzy - текущий LTS-дистрибутив и преемник Humble (поддержка до 2029),
-Harmonic - его официальная пара; Ignition (новый Gazebo) разрешён заданием, а Gazebo Classic с января 2025
-не поддерживается. **При необходимости проект можно перевести на Humble** (Ubuntu 22.04 + Gazebo Fortress):
-API rclpy, Nav2, robot_localization и ros_gz те же, меняются в основном имена системных плагинов Gazebo,
-типы сообщений моста (`ignition.*` вместо `gz.*`) и тип `/cmd_vel` (в Humble Nav2 публикует `Twist`, а не `TwistStamped`).
+**Why Jazzy + Harmonic and not Humble:** Jazzy is the current LTS release and the successor of Humble (supported until 2029),
+and Harmonic is its official pair; Gazebo Classic is unsupported since January 2025. **The project can be ported to Humble**
+(Ubuntu 22.04 + Gazebo Fortress): the rclpy, Nav2, robot_localization and ros_gz APIs are the same; what changes is mostly
+the Gazebo system plugin names, the bridge message types (`ignition.*` instead of `gz.*`) and the `/cmd_vel` type
+(in Humble Nav2 publishes `Twist`, not `TwistStamped`).
 
-## Быстрый старт
+## Quick start
 
 ```bash
-# 1. Зависимости (Gazebo Harmonic ставится вместе с ros-jazzy-ros-gz)
+# 1. Dependencies (Gazebo Harmonic is installed with ros-jazzy-ros-gz)
 sudo apt install ros-jazzy-ros-gz ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
   ros-jazzy-robot-localization ros-jazzy-xacro ros-jazzy-robot-state-publisher ros-jazzy-rviz2
 
-# 2. Сборка
+# 2. Build
 mkdir -p ~/gps_nav_ws/src && cd ~/gps_nav_ws/src
 git clone https://github.com/Wexito11/gps_nav_demo.git
 cd ~/gps_nav_ws && colcon build --symlink-install && source install/setup.bash
 
-# 3. Запуск - одна команда: Gazebo + RViz + локализация + Nav2 + миссия
+# 3. Run - one command: Gazebo + RViz + localization + Nav2 + mission
 ros2 launch gps_nav_demo demo.launch.py
 
-# С записью rosbag (в ~/gps_nav_bags/run_<дата>)
+# With rosbag recording (to ~/gps_nav_bags/run_<date>)
 ros2 launch gps_nav_demo demo.launch.py record:=true
 ```
 
-Через ~15 с робот начинает движение. Ожидаемый лог узла миссии:
+After ~15 s the robot starts moving. Expected mission node log:
 
 ```
 WP1: lat/lon 55.76589731, 37.68495221 -> map (-3.00, -0.30)
@@ -61,7 +61,7 @@ B: lat/lon 55.7659, 37.68513542 -> map (8.50, 0.00)
 FINISH: robot is in zone B (0.09 m from centre)
 ```
 
-## Архитектура
+## Architecture
 
 ```mermaid
 flowchart LR
@@ -69,7 +69,7 @@ flowchart LR
     BR["ros_gz_bridge"]
     EL["ekf_local<br/>odom → base_footprint"]
     EG["ekf_global<br/>map → odom"]
-    NS["navsat_transform<br/>datum = начало мира"]
+    NS["navsat_transform<br/>datum = world origin"]
     WP["waypoints.yaml<br/>lat / lon"]
     MI["gps_waypoint_follower"]
     NAV["Nav2<br/>A* + MPPI, voxel costmaps"]
@@ -86,137 +86,83 @@ flowchart LR
     NAV -->|/cmd_vel| BR
 ```
 
-**Дерево TF:** `map → odom → base_footprint → base_link → {lidar_link, camera_link, imu_link, gps_link, колёса}`.
-`map→odom` публикует `ekf_global`, `odom→base_footprint` - `ekf_local`, остальное - `robot_state_publisher`.
+**TF tree:** `map → odom → base_footprint → base_link → {lidar_link, camera_link, imu_link, gps_link, wheels}`.
+`map→odom` is published by `ekf_global`, `odom→base_footprint` by `ekf_local`, the rest by `robot_state_publisher`.
 
-## Робот - `urdf/rover.urdf.xacro`
+## Robot - `urdf/rover.urdf.xacro`
 
-Собственная модель на xacro: параметры геометрии, макросы колёс/опор и тензоров инерции.
+Custom xacro model: geometry parameters, macros for wheels, casters and inertia tensors.
 
-| Сенсор | Плагин Gazebo | Топик ROS | Параметры |
+| Sensor | Gazebo plugin | ROS topic | Parameters |
 |---|---|---|---|
-| 2D-лидар | `gpu_lidar` | `/scan` | 360°, 360 лучей, 0.12-10 м, 10 Гц, σ = 1 см, высота 0.20 м |
-| Камера глубины (≈ Orbbec Astra) | `rgbd_camera` | `/camera/{image,depth_image,points}` | HFOV 60°, 320×240, глубина 0.6-8 м (как у Astra), 10 Гц, наклон 0.15 рад вниз |
-| GPS | `navsat` (аналог `gazebo_ros_gps`) | `/gps/fix` | 5 Гц |
-| IMU | `imu` | `/imu` | 50 Гц |
-| Привод | `DiffDrive` | `/cmd_vel` (TwistStamped), `/odom` | колея 0.34 м, колёса r = 0.08 м |
+| 2D lidar | `gpu_lidar` | `/scan` | 360°, 360 rays, 0.12-10 m, 10 Hz, σ = 1 cm, height 0.20 m |
+| Depth camera (≈ Orbbec Astra) | `rgbd_camera` | `/camera/{image,depth_image,points}` | HFOV 60°, 320×240, depth 0.6-8 m (as Astra), 10 Hz, tilted 0.15 rad down |
+| GPS | `navsat` (like `gazebo_ros_gps`) | `/gps/fix` | 5 Hz |
+| IMU | `imu` | `/imu` | 50 Hz |
+| Drive | `DiffDrive` | `/cmd_vel` (TwistStamped), `/odom` | track 0.34 m, wheel r = 0.08 m |
 
-## Мир - `worlds/nav_world.sdf.xacro`
+## World - `worlds/nav_world.sdf.xacro`
 
-- Площадка 30×20 м, зона **A** (−8, 0) зелёная, зона **B** (8.5, 0) красная.
-- 7 статических препятствий на прямой A→B: стены, колонны, ящики и **бордюр 8 см**.
-- `spherical_coordinates`: начало мира = главный корпус МГТУ им. Баумана (55.7659, 37.6850), оси ENU.
-- xacro-макросы: одно препятствие - одна строка.
+- 30×20 m area, zone **A** (−8, 0) green, zone **B** (8.5, 0) red.
+- 7 static obstacles on the A→B line: walls, columns, boxes and an **8 cm curb**.
+- `spherical_coordinates`: world origin = Bauman University main building (55.7659, 37.6850), ENU axes.
+- xacro macros: one obstacle = one line.
 
-## Локализация - `config/localization.yaml`
+## Localization - `config/localization.yaml`
 
-- `ekf_local`: одометрия колёс + IMU → гладкая `odom→base_footprint` без скачков (для локальной карты и контроллера).
-- `ekf_global`: + GPS → `map→odom`, глобально согласованная поза.
-- `navsat_transform`: **datum = начало мира Gazebo**, поэтому фрейм `map` совпадает с миром - координаты в RViz,
-  Gazebo и SDF одинаковы. `use_local_cartesian: true`: в этой точке сетка UTM (зона 37, осевой меридиан 39°)
-  повёрнута на ~1.1° относительно севера, на 16 м это дало бы ~0.3 м ошибки.
+- `ekf_local`: wheel odometry + IMU → smooth `odom→base_footprint` without jumps (for the local costmap and controller).
+- `ekf_global`: + GPS → `map→odom`, globally consistent pose.
+- `navsat_transform`: **datum = Gazebo world origin**, so the `map` frame matches the world - coordinates in RViz,
+  Gazebo and SDF are the same. `use_local_cartesian: true`: at this location the UTM grid (zone 37, central meridian 39°)
+  is rotated ~1.1° from north, which would give ~0.3 m error over 16 m.
 
-## Навигация - `config/nav2_params.yaml`
+## Navigation - `config/nav2_params.yaml`
 
-Файл **генерируется** `tools/make_nav2_params.py` из стандартных параметров Nav2 Jazzy - все отличия
-собраны и прокомментированы в одном месте.
+The file is **generated** by `tools/make_nav2_params.py` from the default Nav2 Jazzy parameters - all changes
+are collected and commented in one place.
 
-- **Без заранее построенной карты:** глобальная карта стоимости - скользящее окно 30×30 м, карта препятствий
-  строится онлайн по данным сенсоров.
-- **VoxelLayer (3D) в обеих картах**, источники `/scan` + `/camera/points`. В 2D-слое лучи лидара на высоте 0.20 м
-  проходили бы над бордюром и стирали бы отметки камеры; в 3D каждый сенсор очищает только свою высоту.
-- Облако камеры: точки ниже 4 см отбрасываются (пол), дальность отметки 3 м.
-- Планировщик A* (NavFn), контроллер MPPI (batch 1000 - облегчён для ноутбука), `cmd_vel` как TwistStamped.
-- Радиус робота 0.30 м, инфляция 0.6 м.
+- **No prebuilt map:** the global costmap is a 30×30 m rolling window, the obstacle map is built online from sensor data.
+- **VoxelLayer (3D) in both costmaps**, sources `/scan` + `/camera/points`. In a 2D layer, lidar rays at 0.20 m
+  would pass over the curb and clear the camera marks; in 3D each sensor only clears its own height.
+- Camera point cloud: points below 4 cm are dropped (floor), marking range 3 m.
+- A* planner (NavFn), MPPI controller (batch 1000 - lighter for a laptop), `cmd_vel` as TwistStamped.
+- Robot radius 0.30 m, inflation 0.6 m.
 
-## GPS-маршрут - `config/waypoints.yaml`, `scripts/gps_waypoint_follower.py`
+## GPS route - `config/waypoints.yaml`, `scripts/gps_waypoint_follower.py`
 
-- Точки задаются в lat/lon (поддерживается и x/y в координатах мира) - маршрут меняется только в YAML.
-- Узел ждёт GPS-привязку, переводит точки во фрейм `map` через сервис `/fromLL` (robot_localization),
-  ориентирует каждую точку на следующую, публикует маркеры для RViz, отправляет маршрут в Nav2 (`FollowWaypoints`)
-  и в конце проверяет, что робот остановился внутри зоны B.
+- Waypoints are given in lat/lon (x/y in world coordinates also supported) - the route changes only in YAML.
+- The node waits for a GPS fix, converts points to the `map` frame with the `/fromLL` service (robot_localization),
+  orients each point towards the next one, publishes RViz markers, sends the route to Nav2 (`FollowWaypoints`)
+  and at the end checks that the robot stopped inside zone B.
 
-## Производительность
+## Performance
 
-Ryzen 5 2500U / Radeon Vega 8 / 14 ГБ: RTF ≈ 0.35-0.6 (Gazebo + RViz + Nav2 + EKF). Вся система работает в
-симуляционном времени, поэтому низкий RTF замедляет, но не меняет поведение. Видео записано без ускорения.
+Ryzen 5 2500U / Radeon Vega 8 / 14 GB: RTF ≈ 0.35-0.6 (Gazebo + RViz + Nav2 + EKF). The whole system runs in
+simulation time, so a low RTF slows it down but does not change the behaviour.
 
-Полезные проверки: `ros2 topic hz /camera/points`, `ros2 run tf2_tools view_frames`.
+Useful checks: `ros2 topic hz /camera/points`, `ros2 run tf2_tools view_frames`.
 
-## Структура репозитория
+## Repository structure
 
 ```
 gps_nav_demo/
-├── urdf/rover.urdf.xacro          # робот и сенсоры
-├── worlds/nav_world.sdf.xacro     # мир, зоны A/B, GPS-origin
+├── urdf/rover.urdf.xacro          # robot and sensors
+├── worlds/nav_world.sdf.xacro     # world, zones A/B, GPS origin
 ├── config/
-│   ├── bridge.yaml                # мост Gazebo <-> ROS 2
+│   ├── bridge.yaml                # Gazebo <-> ROS 2 bridge
 │   ├── localization.yaml          # dual EKF + navsat_transform
-│   ├── nav2_params.yaml           # сгенерирован tools/make_nav2_params.py
-│   └── waypoints.yaml             # маршрут в GPS-координатах
+│   ├── nav2_params.yaml           # generated by tools/make_nav2_params.py
+│   └── waypoints.yaml             # route in GPS coordinates
 ├── launch/
-│   ├── sim.launch.py              # Gazebo + робот + мост + RViz
-│   └── demo.launch.py             # всё вместе, одна команда
+│   ├── sim.launch.py              # Gazebo + robot + bridge + RViz
+│   └── demo.launch.py             # everything, one command
 ├── scripts/gps_waypoint_follower.py
 ├── tools/make_nav2_params.py
 └── rviz/sim.rviz
 ```
 
-## Соответствие критериям
+## Limitations and next steps
 
-| Критерий | Баллы | Реализация |
-|---|---|---|
-| Модель робота и сенсоров | 2 | собственный xacro, инерции, лидар, камера глубины, GPS, IMU, DiffDrive |
-| Gazebo и мир | 1 | мир на xacro, 7 препятствий, зоны A/B, геопривязка |
-| ROS: узлы, топики, tf, launch | 2 | мост, дерево TF, dual EKF, 2 launch-файла, свой узел |
-| Автономная навигация и объезд | 3 | Nav2 без готовой карты, слияние лидара и камеры в voxel-карте, бордюр |
-| GPS / waypoints | 1 | маршрут в lat/lon, `/fromLL`, datum = мир |
-| Качество кода и документации | 1 | README, комментарии, генератор параметров |
-| Воспроизводимость | 1 | `ros2 launch gps_nav_demo demo.launch.py` |
-
-## Ограничения и что улучшить
-
-- GPS без шума (≈ RTK). Для обычного GPS (σ 1-3 м) - добавить шум в сенсор, корректные ковариации и большие допуски точек.
-- Мир статический; для динамических препятствий нужно настроить очистку/затухание в картах стоимости.
-- Кнопка Reset в Gazebo удаляет робота (он создаётся launch-файлом) - для повтора перезапустите launch.
-
-## Бонусные вопросы (электроника)
-
-### 1. Подключение Orbbec Astra, ультразвуковых датчиков и GPS к Raspberry Pi 5
-
-- **Orbbec Astra - USB 2.0** (данные и питание по одному кабелю, < 2.4 Вт). Драйвер: OrbbecSDK / ROS 2 `orbbec_camera`.
-  Нюанс Pi 5: суммарный ток USB ограничен 600 мА, если источник не 5 В / 5 А (USB-C PD). При питании от DC-DC,
-  который реально держит 5 А, можно включить `usb_max_current_enable=1` в `config.txt`.
-- **Ультразвук (HC-SR04) - GPIO** (TRIG/ECHO), питание 5 В. ECHO выдаёт 5 В, а GPIO Pi - 3.3 В и не толерантны к 5 В:
-  нужен делитель (1 кОм / 2 кОм) или преобразователь уровней. Датчики опрашивать по очереди (иначе взаимные помехи).
-  На Pi 5 GPIO идут через чип RP1 - `RPi.GPIO` не работает, использовать `gpiozero` / `lgpio`. Linux не реального
-  времени, поэтому при 4+ датчиках лучше вынести опрос на микроконтроллер (RP2040 / ESP32) и передавать расстояния по UART/USB.
-- **GPS (u-blox NEO-M8N, для RTK - ZED-F9P) - UART** на GPIO14/15 (логика 3.3 В, `dtparam=uart0=on` → `/dev/ttyAMA0`)
-  или USB (`/dev/ttyACM0`). Выход PPS - на GPIO для синхронизации времени (опционально). Антенна с открытым небом.
-  Драйвер: `nmea_navsat_driver` или `ublox_gps`.
-
-Итого: USB (камера), UART или USB (GPS), GPIO (ультразвук), I²C (если добавить IMU или датчик тока).
-
-### 2. Питание всех компонентов от одного аккумулятора
-
-Пример: аккумулятор 4S Li-ion (14.8 В) с BMS → предохранитель → выключатель → две ветви:
-
-1. **Силовая:** драйверы моторов напрямую от батареи.
-2. **Логика:** DC-DC (buck) 5.1 В / 5 А (≥ 25 Вт) → Pi 5 и 5-вольтовые датчики (ультразвук, GPS).
-
-Бюджет шины 5 В: Pi 5 до ~12 Вт под нагрузкой, Astra < 2.4 Вт, GPS ~0.5 Вт, каждый HC-SR04 ~0.1 Вт →
-≈ 15-17 Вт, преобразователь на 25 Вт даёт запас.
-
-Правила: общая земля «звездой»; моторы на отдельной ветви, чтобы пусковые токи и помехи не просаживали 5 В;
-конденсаторы на входах DC-DC; мониторинг напряжения и тока (INA219 / INA226 по I²C) и корректное выключение Pi
-при разряде.
-
-### 3. Проверка датчиков без ROS
-
-- **Astra:** `lsusb` (vendor ID `2bc5`), затем OrbbecViewer / NiViewer или `pyorbbecsdk` - увидеть карту глубины
-  и сверить расстояние до стены с рулеткой.
-- **HC-SR04:** скрипт на `gpiozero` (`DistanceSensor(echo=..., trigger=...)`) печатает расстояние - сравнить с
-  рулеткой; осциллограф или логический анализатор на ECHO: ширина импульса ≈ 58 мкс на 1 см.
-- **GPS:** `screen /dev/ttyAMA0 9600` - должны идти NMEA-строки (`$GNGGA`, `$GNRMC`); в GGA качество фиксации > 0 и
-  число спутников. Удобнее `gpsd` + `cgps` / `gpsmon`, для u-blox - u-center.
-- **Общее:** `dmesg`, `ls /dev/tty* /dev/video*`, `i2cdetect -y 1`, мультиметр на шинах питания.
+- GPS has no noise (≈ RTK). For a regular GPS (σ 1-3 m): add sensor noise, correct covariances and larger waypoint tolerances.
+- The world is static; dynamic obstacles need clearing/decay tuning in the costmaps.
+- The Gazebo Reset button removes the robot (it is spawned by the launch file) - restart the launch to run again.
